@@ -1,0 +1,28 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="14">
+            <item index="0" class="java.lang.String" itemvalue="experiment-buddy" />
+            <item index="1" class="java.lang.String" itemvalue="sklearn" />
+            <item index="2" class="java.lang.String" itemvalue="pybullet" />
+            <item index="3" class="java.lang.String" itemvalue="tqdm" />
+            <item index="4" class="java.lang.String" itemvalue="opencv-python" />
+            <item index="5" class="java.lang.String" itemvalue="onnx" />
+            <item index="6" class="java.lang.String" itemvalue="onnx2pytorch" />
+            <item index="7" class="java.lang.String" itemvalue="matpltlib" />
+            <item index="8" class="java.lang.String" itemvalue="rpy2" />
+            <item index="9" class="java.lang.String" itemvalue="scanpy" />
+            <item index="10" class="java.lang.String" itemvalue="gprofiler" />
+            <item index="11" class="java.lang.String" itemvalue="anndata2ri" />
+            <item index="12" class="java.lang.String" itemvalue="leidenalg" />
+            <item index="13" class="java.lang.String" itemvalue="MulticoreTSNE" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

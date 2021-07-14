@@ -1,0 +1,6 @@
+onnx
+numpy
+gym
+gym[atari]
+atari-py
+gym[box2d]

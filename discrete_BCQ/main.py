@@ -243,7 +243,7 @@ if __name__ == "__main__":
 
 	# Load parameters
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--env", default="PongNoFrameskip-v0")     # OpenAI gym environment name
+	parser.add_argument("--env", default="PongNoFrameskip-v0")     # OpenAI gym environment name --env=CarRacing-v0
 	parser.add_argument("--seed", default=0, type=int)             # Sets Gym, PyTorch and Numpy seeds
 	parser.add_argument("--buffer_name", default="Default")        # Prepends name to filename
 	parser.add_argument("--max_timesteps", default=1e6, type=int)  # Max time steps to run environment or train for

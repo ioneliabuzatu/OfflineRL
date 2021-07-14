@@ -4,3 +4,6 @@ gym
 gym[atari]
 atari-py
 gym[box2d]
+onnx2pytorch
+seaborn
+matplotlib

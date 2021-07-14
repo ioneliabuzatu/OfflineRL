@@ -148,7 +148,7 @@ class StandardBuffer(object):
 
 
 	def add(self, state, action, next_state, reward, done, episode_done, episode_start):
-		self.state[self.ptr] = state
+		self.state[self.ptr] = state[2]
 		self.action[self.ptr] = action
 		self.next_state[self.ptr] = next_state
 		self.reward[self.ptr] = reward
@@ -313,5 +313,5 @@ def make_env(env_name, atari_preprocessing):
 		env,
 		is_atari,
 		state_dim,
-		env.action_space.n
+		env.action_space.n if is_atari else env.action_space.shape[0]
 	)

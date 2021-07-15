@@ -25,7 +25,13 @@ class QNet(nn.Module):
         self.policy_output_l2 = nn.Linear(512, self.n_units_out)
 
         if use_weights_init:
-            pass
+            self._weights_init(self.cnn_1)
+            self._weights_init(self.cnn_2)
+            self._weights_init(self.cnn_3)
+            self._weights_init(self.q_vals_l1)
+            self._weights_init(self.q_vals_l2)
+            self._weights_init(self.policy_output_l1)
+            self._weights_init(self.policy_output_l2)
 
     def _weights_init(self, m):
         if isinstance(m, nn.Conv2d):

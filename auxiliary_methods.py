@@ -14,14 +14,14 @@ import seaborn as sns;
 import torch
 from gym import logger as gymlogger
 from gym.wrappers import Monitor
-
+import config
 sns.set()
 gymlogger.set_level(40)  # error only
-
-seed = 777
-if seed: random.seed(seed)
-if seed: np.random.seed(seed)
-if seed: torch.manual_seed(seed)
+seed=config.seed
+if seed:
+    if seed: random.seed(seed)
+    if seed: np.random.seed(seed)
+    if seed: torch.manual_seed(seed)
 
 # Action space (map from continuous actions for steering, throttle and break to 25 action combinations)
 action_mapping = [

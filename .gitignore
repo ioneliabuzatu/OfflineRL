@@ -1,3 +1,5 @@
+runs/
+wandb/
 *.pkl
 *onnx
 logdir/

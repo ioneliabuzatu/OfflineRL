@@ -1,7 +1,5 @@
 import copy
-import os
 import random
-from collections import namedtuple
 from time import sleep
 
 import numpy as np
@@ -9,10 +7,10 @@ import seaborn as sns
 import torch
 import torch.nn.functional as F
 from gym import logger as gymlogger
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from tqdm import tqdm
-
+from torch.utils.tensorboard import SummaryWriter
 import config
 from auxiliary_methods import Env
 from auxiliary_methods import Logger
@@ -20,57 +18,20 @@ from auxiliary_methods import action_mapping
 from auxiliary_methods import plot_metrics
 from auxiliary_methods import save_as_onnx
 from bcq import QNet
+from dataset import DatasetDemonstration
 from dataset import PartialDataset
 
 sns.set()
 gymlogger.set_level(40)  # error only
 
-seed = 777
+seed = config.seed
 if seed:
     random.seed(seed)
-if seed:
     np.random.seed(seed)
-if seed:
     torch.manual_seed(seed)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device: " + str(device))
-
-Transition = namedtuple('Transition', ['states', 'actions', 'next_states', 'rewards', 'dones'])
-
-
-# Since the demonstrations are partial files assuming that the collected data is too
-# large to fit into memory at once the Demonstration class utilizes an object 
-# from the ParialDataset class to load and unload files from the file system.
-# This is a typical use case for very large datasets and should give you an idea 
-# how to handle such issues.  
-class DatasetDemonstration(object):
-    def __init__(self, root_path):
-        assert (os.path.exists(root_path))
-        self.root_path = root_path
-        # assign list of data files found in the data root directory
-        self.data_files = sorted(os.listdir(root_path))
-
-    def __len__(self):
-        # this count returns the number of files in the data root folder
-        return len(self.data_files)
-
-    def load(self, idx):
-        # select an index at random from all files
-        file_name = self.data_files[idx]
-        file_path = os.path.join(self.root_path, file_name)
-        # load the selected file
-        data = np.load(file_path)
-        # get the respective properties from the files
-        states = data["states"]
-        actions = data["actions"]
-        next_states = data["next_states"]
-        rewards = data["rewards"]
-        dones = data["dones"]
-        # clean the memory from the data file
-        del data
-        # return the transitions
-        return Transition(states=states, actions=actions, next_states=next_states, rewards=rewards, dones=dones)
 
 
 # Agent for the Discrete Batch-Constrained deep Q-Learning (BCQ) https://github.com/sfujim/BCQ/tree/master/discrete_BCQ
@@ -89,7 +50,7 @@ class ORLAgent(object):
         self.logger = logger
         self.num_actions = len(action_mapping)
 
-        self.Q = QNet(img_stack, self.num_actions).to(device)
+        self.Q = QNet(img_stack, self.num_actions, use_weights_init=True).to(device)
         self.Q_target = copy.deepcopy(self.Q)
         self.Q_optimizer = getattr(torch.optim, optimizer)(self.Q.parameters(), **optimizer_parameters)
 
@@ -133,9 +94,10 @@ class ORLAgent(object):
         # Compute the target Q value
         with torch.no_grad():
             action_idx = self._get_action_idx(next_state)
+            next_action = action_mapping[action_idx]
             # Get target q-function
             q, _, _ = self.Q_target(next_state)
-            target_Q = reward + done * self.discount * q.gather(1, action_idx).reshape(-1, 1)
+            target_Q = reward + done * self.discount * q.gather(1, next_action).reshape(-1, 1)
 
         # Get current Q estimate
         current_Q, log_probs, logits = self.Q(state)
@@ -183,26 +145,15 @@ def train_epoch(agent, train_set, logger, epoch, pbar, epochs, batchsize):
     # Switch to train mode
     agent.mode('train')
     # Initialize helpers variables
-    ts_len = 2  # len(train_set)
+    ts_len = len(train_set)
     running_loss = None
     alpha = 0.3
-    # =========== [OPTIONAL] CHANGES =============
-    # ############################################
-    # [Hint]: Accessing the file system is slow and you can
-    # reshape your data / load multiple files in to speed up 
-    # training.
-    # ############################################
-    # Iterate over the list of demonstration files
-    for i, idx in enumerate(BatchSampler(SubsetRandomSampler(range(ts_len)), 1, False)):
-        # Load the selected index from the filesystem
-        data = train_set.load(idx[0])
-        # Create dataset from loaded data sub-set
+    for i, idx in enumerate(BatchSampler(SubsetRandomSampler(range(ts_len)), 15, False)):
+        data = train_set.load_multiple_files(idx)
         partial = PartialDataset(data)
-        # Create dataloader
         loader = DataLoader(partial, batch_size=batchsize, num_workers=14, shuffle=True, drop_last=False,
                             pin_memory=True)
         l_len = len(loader)
-        # Iterate over parial dataset
         for j, (s, a, s_, r, d) in enumerate(loader):
             # Adjust types, shape and push to device
             s = s.float().to(device)
@@ -254,6 +205,7 @@ print("Saving state to {}".format(logger.basepath))
 
 
 def training(pretrained=False, filepath_pretrained="model.pkl", epochs=2, img_stack=4):
+    writer = config.tensorboard
     train_set = DatasetDemonstration('data-mixed')
     agent = ORLAgent(logger, img_stack=img_stack)
 
@@ -283,8 +235,9 @@ def training(pretrained=False, filepath_pretrained="model.pkl", epochs=2, img_st
             # store logs
             logger.dump()
             # store weights
+            writer.add_scalar('Loss_train', train_loss, i_ep)
+            writer.add_scalar('Reward', score, i_ep)
             print("Saving state to {}".format(logger.basepath))
-            save_file_path = f'{logger.param_file}_%03d' % i_ep
             agent.save("model.pkl", sample)
 
     print("Saved state to {}".format(logger.basepath))
@@ -292,7 +245,7 @@ def training(pretrained=False, filepath_pretrained="model.pkl", epochs=2, img_st
     plot_metrics(logger)
 
 
-training(img_stack=config.img_stack)
+training(img_stack=config.img_stack, epochs=config.epochs)
 
 # # Visualize Agent Interactions
 # ### Put the agent into a real environment

@@ -1,7 +1,7 @@
 import experiment_buddy
 
 img_stack = 4
-batchsize = 7496
+batchsize = 128
 show_hud = True
 use_colab_autodownload = False
 seed = 777

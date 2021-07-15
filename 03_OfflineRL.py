@@ -68,8 +68,9 @@ class ORLAgent(object):
         print("Trainable Parameters: {}".format(num_trainable_params))
 
     def _get_action_idx(self, state) -> int:
-        q_vals, probs, logits = self.Q(state)
-        probs = probs.exp()
+        q_vals, logits = self.Q(state)
+        log_probs = F.log_softmax(logits, dim=1)
+        probs = log_probs.exp()
         # probs = (probs / probs.max(1, keepdim=True)[0] > self.threshold).float()
         # action_idx = int((probs * q_vals + (1. - probs) * -1e8).argmax(1))
         probs = (probs / probs.max(1, keepdim=True)[0] > self.threshold).float()
@@ -94,13 +95,14 @@ class ORLAgent(object):
         # Compute the target Q value
         with torch.no_grad():
             action_idx = self._get_action_idx(next_state)
-            next_action = action_mapping[action_idx]
+            # next_action = [action_mapping[idx] for idx in action_idx.squeeze().tolist()]
             # Get target q-function
-            q, _, _ = self.Q_target(next_state)
-            target_Q = reward + done * self.discount * q.gather(1, next_action).reshape(-1, 1)
+            q, _ = self.Q_target(next_state)
+            target_Q = reward + done * self.discount * q.gather(1, action_idx).reshape(-1, 1)
 
         # Get current Q estimate
-        current_Q, log_probs, logits = self.Q(state)
+        current_Q, logits = self.Q(state)
+        log_probs = F.log_softmax(logits, dim=1)
         # Gather actions along dimension
         current_Q = current_Q.gather(1, action)
         # Get log probabilities from logits
@@ -148,10 +150,11 @@ def train_epoch(agent, train_set, logger, epoch, pbar, epochs, batchsize):
     ts_len = len(train_set)
     running_loss = None
     alpha = 0.3
-    for i, idx in enumerate(BatchSampler(SubsetRandomSampler(range(ts_len)), 15, False)):
-        data = train_set.load_multiple_files(idx)
+    for i, idx in enumerate(BatchSampler(SubsetRandomSampler(range(ts_len)), 1, False)):
+        # data = train_set.load_multiple_files(idx)
+        data = train_set.load(idx[0])
         partial = PartialDataset(data)
-        loader = DataLoader(partial, batch_size=batchsize, num_workers=14, shuffle=True, drop_last=False,
+        loader = DataLoader(partial, batch_size=batchsize, num_workers=4, shuffle=True, drop_last=False,
                             pin_memory=True)
         l_len = len(loader)
         for j, (s, a, s_, r, d) in enumerate(loader):
@@ -172,7 +175,7 @@ def train_epoch(agent, train_set, logger, epoch, pbar, epochs, batchsize):
 
 
 @torch.no_grad()
-def run_episode(agent, n_runs=4, record_video=False, logger=None, pbar=None, img_stack=config.img_stack):
+def run_episode(agent, n_runs=1, record_video=False, logger=None, pbar=None, img_stack=config.img_stack):
     agent.mode('eval')
     score_avg = None
     alpha = 0.3
@@ -245,7 +248,7 @@ def training(pretrained=False, filepath_pretrained="model.pkl", epochs=2, img_st
     plot_metrics(logger)
 
 
-training(img_stack=config.img_stack, epochs=config.epochs)
+training(img_stack=config.img_stack, epochs=config.epochs, pretrained=True)
 
 # # Visualize Agent Interactions
 # ### Put the agent into a real environment

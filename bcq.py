@@ -53,4 +53,4 @@ class QNet(nn.Module):
         q_vals_l1 = self.activation(self.q_vals_l1(x.reshape(-1, 4096)))
         logits = self.policy_output_l2(self.activation(self.policy_output_l1(x.reshape(-1, 4096))))
 
-        return self.q_vals_l2(q_vals_l1), log_softmax(logits, dim=1), logits
+        return self.q_vals_l2(q_vals_l1),  logits

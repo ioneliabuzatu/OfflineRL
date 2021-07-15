@@ -1,40 +1,27 @@
-import shutil
-import zipfile
-
-seed = 777
-import random
-
-if seed: random.seed(seed)
-import numpy as np
-
-if seed: np.random.seed(seed)
-import torch
-
-if seed: torch.manual_seed(seed)
-
-# Imports
-import os
-import time
-# PyTorch imports
-# Onnx model-export imports
-
-# Auxiliary Python imports
+import base64
 import glob
 import io
-import base64
+import os
+import random
+import shutil
+import time
 from time import time, strftime
 
-# Environment import and set logger level to display error only
-from gym import logger as gymlogger
-
-gymlogger.set_level(40)  # error only
-
-# Plotting and notebook imports
+import gym
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns;
+import torch
+from gym import logger as gymlogger
+from gym.wrappers import Monitor
 
 sns.set()
+gymlogger.set_level(40)  # error only
 
+seed = 777
+if seed: random.seed(seed)
+if seed: np.random.seed(seed)
+if seed: torch.manual_seed(seed)
 
 # Action space (map from continuous actions for steering, throttle and break to 25 action combinations)
 action_mapping = [
@@ -66,13 +53,6 @@ action_mapping = [
     (0.5, 0, 1),  # half right
     (1, 0, 1)  # full right
 ]
-def download_and_extract_data():
-    os.system("wget --no-check-certificate 'https://cloud.ml.jku.at/s/CdYdidkkBpFgcED/download' -O train_mixed.zip")
-    # select as a data root the mixed demonstratoins directory
-    data_root = 'data_mixed'
-    with zipfile.ZipFile('train_mixed.zip', 'r') as zip_ref:
-        os.makedirs(data_root, exist_ok=True)
-        zip_ref.extractall(data_root)
 
 
 # # Auxiliary Methods
@@ -231,3 +211,88 @@ def save_as_onnx(torch_model, sample_input, model_path):
                       # the ONNX version to export the model to - see https://github.com/microsoft/onnxruntime/blob/master/docs/Versioning.md
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       )
+
+
+
+class Env():
+    """
+    Environment wrapper for CarRacing
+    """
+
+    def __init__(self, img_stack, show_hud=True, record_video=True, seed=None):
+        self.record_video = record_video
+        # Create gym environment
+        self.gym_env = gym.make('CarRacing-v0')
+        if seed:
+            print(f"Environment seed: {seed}")
+            self.gym_env.seed(seed)
+            # self.gym_env.action_space.seed(seed)
+        self.env, self.video_dir = self.wrap_env(self.gym_env)
+        self.action_space = self.env.action_space
+        self.img_stack = img_stack
+        self.show_hud = show_hud
+
+    def reset(self, raw_state=False):
+        self.env, self.video_dir = self.wrap_env(self.gym_env)
+        self.rewards = []
+        self.disable_view_window()
+        img_rgb = self.env.reset()
+        img_gray = rgb2gray(img_rgb)
+        if not self.show_hud:
+            img_gray = hide_hud(img_gray)
+        self.stack = [img_gray] * self.img_stack
+        if raw_state:
+            return np.array(self.stack), np.array(img_rgb)
+        else:
+            return np.array(self.stack)
+
+    @staticmethod
+    def disable_view_window():
+        from gym.envs.classic_control import rendering
+        org_constructor = rendering.Viewer.__init__
+
+        def constructor(self, *args, **kwargs):
+            org_constructor(self, *args, **kwargs)
+            self.window.set_visible(visible=False)
+
+        rendering.Viewer.__init__ = constructor
+
+    def step(self, action, raw_state=False):
+        # for i in range(self.img_stack):
+        img_rgb, reward, done, _ = self.env.step(action)
+        # accumulate reward
+        self.rewards.append(reward)
+        # if no reward recently, end the episode
+        die = True if np.mean(self.rewards[-np.minimum(100, len(self.rewards)):]) <= -1 else False
+        if done or die:
+            self.env.close()
+        img_gray = rgb2gray(img_rgb)
+        if not self.show_hud:
+            img_gray = hide_hud(img_gray)
+        # add to frame stack
+        self.stack.pop(0)
+        self.stack.append(img_gray)
+        assert len(self.stack) == self.img_stack
+        # --
+        if raw_state:
+            return np.array(self.stack), np.sum(self.rewards[-1]), done, die, img_rgb
+        else:
+            return np.array(self.stack), np.sum(self.rewards[-1]), done, die
+
+    def render(self, *arg):
+        return self.env.render(*arg)
+
+    def close(self):
+        self.env.close()
+
+    def wrap_env(self, env):
+        """
+        Wrapper for recording video of the environment.
+        """
+        outdir = f"./videos/"
+        if os.path.exists(outdir):
+            shutil.rmtree(outdir)
+        os.makedirs(outdir, exist_ok=True)
+        if self.record_video:
+            env = Monitor(env, outdir, force=True)
+        return env, outdir

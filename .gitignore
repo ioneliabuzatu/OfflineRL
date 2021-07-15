@@ -1,3 +1,6 @@
+*.pkl
+*onnx
+logdir/
 data-mixed/
 train_mixed.zip
 videos/
